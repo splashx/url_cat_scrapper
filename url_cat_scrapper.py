@@ -67,64 +67,52 @@ def fetchCategory(proxy, urllist, urlscategorized):
 					print "exception["  +  str(n) + "] proxy = " + proxy + "\t url = " + url  + "\tmessage = " + str(err)
 					return
 				
-"""
-					else:
-						# find "msgerr1"
-						regex = '<td>Lookup(.*)</td>'
-						error_message = list(set(re.findall(regex, html_response, re.MULTILINE)))
-						if error_message: 
-							output = "SMS=FAILED; Proxy=" + proxy_addr + "; Cookie=" + cj._cookies['www.telekom.sk']['/']['PHPSESSID'].value + "; Error=" + str(error_message)
-						else:
-							output = "SMS=FAILED; Proxy=" + proxy_addr + "; Cookie=" + cj._cookies['www.telekom.sk']['/']['PHPSESSID'].value + "; script error=UNABLE to parse html response"
-							#output = "\n" + output + "\n---------------------*/*-------------------------\n" + html_response + "\n---------------------*/*-------------------------"
-			except Exception, err:
-				if "urlopen error timed out" in str(err):
-					output = "SMS=MAYBE; Proxy=" + str(proxy_addr) + "; ;Error=" + str(err)
-				else:
-					output = "SMS=FAILED; Proxy=" + str(proxy_addr) + "; ;Error=" + str(err)
-				#print "Unexpected error:", sys.exc_info()[0]    # debug only
-"""
-
 manager = multiprocessing.Manager()
 urlList = manager.list()
 proxyQueue = Queue()
-urlsCategorized = manager.dict()
-
-
-f=open(pickled_file, 'rb')
-while 1:
-	try:
-		urlsCategorized.update(pickle.load( f ))
-		print "In the while.."
-	except EOFError:
-		f.close()
-		print "EOFerror"
-		break
-	except Exception, err:
-		print "General Except" + str(err)
-		break
-		
-try:
-	g = open(args.proxyList, 'rb')
-except:
-	print "\nError opening " + str(args.proxyList) + ". Exiting..."
-	exit()
-	
-for line in g:
-    li=line.strip()
-    if not li.startswith("#"):
-    	proxyQueue.put(li)
+restoredDict = dict()
 
 try:
-	h = open(args.urlList, 'rb')
+	f=open(pickled_file, 'rb')
+	while 1:
+		try:
+			temp_dict= pickle.load(f)[0]
+			print "loaded: ",
+			print temp_dict
+			restoredDict.update(temp_dict)
+			print "In the while.."
+		except EOFError:
+			print "EOFerror"
+			break
+		except Exception, err:
+			print "General Except" + str(err)
+			break
+	f.close()
+	urlsCategorized = manager.dict(restoredDict)
 except:
-	print "\nError opening " + str(args.urlList) + ". Exiting..."
+	print "[*] Unable to load " + pickled_file + ". That's okay if it's your first run.."
+	urlsCategorized = manager.dict()
+
+try:
+	with open( args.proxyList, "rb") as g:
+		for line in g:
+		    li=line.strip()
+		    if not li.startswith("#"):
+		    	proxyQueue.put(li)
+
+except:
+	print "\nError on processing " + str(args.proxyList) + ". Exiting..."
 	exit()
-	
-for line in h:
-    li=line.strip()
-    if not li.startswith("#"):
-    	urlList.append(li)
+try:
+	with open( args.urlList, 'rb') as h:
+		for line in h:
+		    li=line.strip()
+		    if not li.startswith("#"):
+		    	urlList.append(li)
+
+except:
+	print "\nError on processing " + str(args.urlList) + ". Exiting..."
+	exit()
     	
 pool = multiprocessing.Pool(multiprocessing.cpu_count()*10)
 while not proxyQueue.empty() or not urlList:
@@ -133,24 +121,29 @@ while not proxyQueue.empty() or not urlList:
 pool.close()
 pool.join()	
 
-print "Done threading - printing list"
-print urlList
+backupDict = dict(urlsCategorized)
 
 # pickle urlsCategorized
 try:
-		pickledData = [urlsCategorized]  
-		pickle.dump( pickledData, open( pickled_file, "ab" ) )
-		print "\n[*] Successfully pickled to " + pickled_file
+		pickledData = [backupDict]
+		with open( pickled_file, "ab" ) as f:
+    			pickle.dump( pickledData, f)
+		print "[*] Successfully pickled to " + pickled_file
 except:
-		print "\n[*] Bummer - couldn't pickle. Resume won't be possible (this is weird..)"
+		print "[*] Bummer - couldn't pickle. Resume won't be possible (this is weird..)"
 
 try:
 		with open(args.urlList, 'w') as f:
 			for s in urlList:
 				f.write(s + "\n")
-		print "\n[*] Successfully updated " + str(args.urlList)
+		print "[*] Successfully updated " + str(args.urlList)
 except:
-		print "\n[*] Error while updating " + str(args.urlList)
+		print "[*] Error while updating " + str(args.urlList)
 		
-		
-print urlsCategorized		
+print backupDict
+
+manager.shutdown()
+del manager
+
+
+
