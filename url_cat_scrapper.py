@@ -44,28 +44,32 @@ def fetchCategory(proxy, urllist, urlscategorized):
 		url = urllist.pop()
 		
 		if not url:
-			break;
+			return 1; #nothing to do, list is empty, success
 		else:
-			try:
-					req = opener.open("http://www.fortiguard.com/ip_rep.php?data=" + url, None, timeout=TIMEOUT)
-					html_response = req.read()
+			if url is in urlscategorized:
+				return 1 #nothing to do, URL is already categorized, success
+			else:
+				try:
+						req = opener.open("http://www.fortiguard.com/ip_rep.php?data=" + url, None, timeout=TIMEOUT)
+						html_response = req.read()
 					
-					regex = '<h3 style="float: left">Category: ([a-zA-Z ]+)</h3>'
-					reg_match = re.search(regex, html_response, re.MULTILINE)
-					if reg_match:
-						category = reg_match.group(1)
-						urlscategorized[url] = category
-					else:   #couldn't match, assuming proxy issue
-						print "Appending url"
-						urllist.append(url)
-						return
+						regex = '<h3 style="float: left">Category: ([a-zA-Z ]+)</h3>'
+						reg_match = re.search(regex, html_response, re.MULTILINE)
+						if reg_match:
+							category = reg_match.group(1)
+							urlscategorized[url] = category
+							return 1
+						else:   #couldn't match, assuming proxy issue
+							print "Appending url"
+							urllist.append(url)
+							return 0
 					
-					print "["  +  str(n) + "] proxy = " + proxy + "\t url = " + url  + "\tmessage = " + category
+						print "["  +  str(n) + "] proxy = " + proxy + "\t url = " + url  + "\tmessage = " + category
 						
-			except Exception, err:
-					urllist.append(url)
-					print "exception["  +  str(n) + "] proxy = " + proxy + "\t url = " + url  + "\tmessage = " + str(err)
-					return
+				except Exception, err:
+						urllist.append(url)
+						print "exception["  +  str(n) + "] proxy = " + proxy + "\t url = " + url  + "\tmessage = " + str(err)
+						return 0
 				
 manager = multiprocessing.Manager()
 urlList = manager.list()
@@ -132,6 +136,7 @@ try:
 except:
 		print "[*] Bummer - couldn't pickle. Resume won't be possible (this is weird..)"
 
+# writes the remaining urls that were not processed
 try:
 		with open(args.urlList, 'w') as f:
 			for s in urlList:
