@@ -1,10 +1,10 @@
 """
-This script receives a list of Unknown URLs from Palo Alto DB, 
-searches for the categories on Fortinet database and generates a bulk-formatted list to be submitted to PA
+This script receives a list of URLs, searches for the category on Fortinet database
+It uses a list of http proxy to bypass Fortigaurd's limit on 10 requests per minute, 200 per hour, 500 per day.
+
+Tested: with a list of 400 open proxies, 3000 URLs can be categorized in 10min.
 
 URLs should be entered one per line.
-
-Test a site website: https://urlfiltering.paloaltonetworks.com/TestASite.aspx
 """
 
 import re
@@ -72,6 +72,7 @@ def fetchCategory(proxy, urllist, urlscategorized):
 """ main """
 args = parser.parse_args()
 pickled_file = args.urlList + ".pickled"
+localURLDB = "localURLCatdb.pickled"
 
 TIMEOUT = 10
 USER_AGENT_FILE = 'user-agent_list.txt'
@@ -81,6 +82,7 @@ urlList = manager.list()
 proxyQueue = Queue()
 restoredDict = dict()
 
+# load all urls from file into a list
 try:
 	with open( args.urlList, 'rb') as h:
 		for line in h:
@@ -91,10 +93,12 @@ except:
 	print "\nError on processing " + str(args.urlList) + ". Exiting..."
 	exit()
 
+# if urllist is empty, quits
 if not urlList:
 	print "[*] " + str(args.urlList) + " is empty. Exiting.."
 	exit()
 
+# load all proxies from file into a queue
 try:
 	with open( args.proxyList, "rb") as g:
 		for line in g:
@@ -105,12 +109,14 @@ except:
 	print "\nError on processing " + str(args.proxyList) + ". Exiting..."
 	exit()
 
+# if the queue is empty (= nothing in the file), quits
 if proxyQueue.empty():
 	print "[*] " + str(args.proxyList) + " is empty. Exiting.."
 	exit()
 
+# load all known urls/categories 
 try:
-	f=open(pickled_file, 'rb')
+	f=open(localURLDB, 'rb')
 	while 1:
 		try:
 			temp_dict= pickle.load(f)[0]
@@ -121,10 +127,13 @@ try:
 			print "General Except" + str(err)
 			break
 	f.close()
-	urlsCategorized = manager.dict(restoredDict)
+	#urlsCategorized = manager.dict(restoredDict)
+	categorizedURLsfromDB = manager.dict(restoredDict)
+	
 except:
 	print "[*] Unable to load " + pickled_file + " (okay for a first run)"
 	urlsCategorized = manager.dict()
+	categorizedURLsfromDB = manager.dict()
 
 pool = multiprocessing.Pool(multiprocessing.cpu_count()*10)
 while not proxyQueue.empty():
